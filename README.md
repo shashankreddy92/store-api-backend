@@ -18,6 +18,8 @@ myself, end to end.
 | GET | `/products/{id}` | Get a single product by ID | `200` + JSON object | `404` if not found |
 | POST | `/cart` | Add an item to the cart | `201` + created item | `400` on bad payload |
 | GET | `/cart` | View current cart contents | `200` + JSON array | — |
+| POST |'/orders' | Create an order (async processing)|'202' + {id, status: PENDING}	—
+GET	/orders/{id}	Get order status	200 + {id, status}	404 if not found
 
 ### Example requests
 
@@ -31,6 +33,9 @@ curl -X POST http://localhost:8080/cart \
   -d '{"productId": 1, "quantity": 2}'
 
 curl http://localhost:8080/cart
+
+curl -i -X POST http://localhost:8080/orders
+curl http://localhost:8080/orders/{id}
 ```
 
 ### Example response — `GET /products/1`
@@ -43,6 +48,17 @@ curl http://localhost:8080/cart
   "description": "Fits 15-inch laptops"
 }
 ```
+Example response — POST /orders (immediate)
+{
+  "id": "c1eb8e80-845c-4650-be62-2c881ba77568",
+  "status": "PENDING"
+}
+
+Example response — GET /orders/{id} (a few seconds later)
+{
+  "id": "c1eb8e80-845c-4650-be62-2c881ba77568",
+  "status": "COMPLETED"
+}
 
 ---
 
@@ -68,12 +84,15 @@ src/main/java/com/shashank/storeapi/
 ├── model/
 │   ├── Product.java
 │   └── CartItem.java
-├── service/
+├──├── service/
 │   ├── ProductService.java     # in-memory product data
-│   └── CartService.java        # in-memory cart data
+│   ├── CartService.java        # in-memory cart data
+│   ├── OrderService.java       # creates orders, tracks status
+│   └── OrderProcessor.java     # simulates async processing (separate bean, required for @Async to actually run on a background thread)
 └── controller/
     ├── ProductController.java
-    └── CartController.java
+    ├── CartController.java
+    └── OrderController.java
 ```
 
 ---
@@ -90,6 +109,7 @@ src/main/java/com/shashank/storeapi/
   [SauceDemo UI automation project](https://github.com/shashankreddy92/ecommerce-automation-framework), 
   so both projects sit under a consistent e-commerce theme — though the two 
   systems are independent and not functionally connected.
+- Orders are processed asynchronously to demonstrate testing eventual consistency: POST /orders returns 202 Accepted immediately with status PENDING, while a background thread completes processing a few seconds later. This required splitting the async logic into its own OrderProcessor bean — calling an @Async method from within the same class silently runs it synchronously, since Spring's proxy only intercepts calls from outside the class.
 
 ---
 
